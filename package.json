@@ -1,0 +1,14 @@
+{
+  "name": "WETH11",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "ethers": "^5.1.0",
+    "hardhat": "^2.1.2",
+    "hardhat-yulp": "^0.0.5",
+    "yulp": "^0.2.3"
+  }
+}
