@@ -10,6 +10,7 @@
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.1.0",
     "hardhat": "^2.1.2",
+    "hardhat-gas-reporter": "^1.0.4",
     "hardhat-yulp": "^0.0.5",
     "yulp": "^0.2.3"
   },
