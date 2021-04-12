@@ -48,9 +48,9 @@ describe("WETH11", function() {
     })
 
     it('deposits ether to another account', async () => {
-      const balanceBefore = await weth.balanceOf(await user3.getAddress())
-      await weth.depositTo(user2, { value: 1 })
-      const balanceAfter = await weth.balanceOf(await user3.getAddress())
+      const balanceBefore = await weth.balanceOf(await user2.getAddress())
+      await weth.depositTo(await user2.getAddress(), { value: 1 })
+      const balanceAfter = await weth.balanceOf(await user2.getAddress())
       expect(balanceAfter).to.equal(balanceBefore.add('1'))
     })
 

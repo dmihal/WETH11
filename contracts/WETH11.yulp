@@ -62,6 +62,24 @@ object "WETH11" {
             0, caller())
       }
 
+      case sig"depositTo(address recipient) public" {
+        mstruct depositTo(sig: 4, recipient: 32)
+        let recipient := depositTo.recipient(_calldata)
+
+        // balanceOf[dst] = add(balanceOf[dst], wad);
+        // TODO: consolidate multiple mappingStorageKey (whole file)
+        let balanceOfDestination := sload(mappingStorageKey(recipient, Storage.balance))
+        sstore(mappingStorageKey(recipient, Storage.balance),
+            add(balanceOfDestination, callvalue()))
+
+        // totalSupply
+        sstore(0, add(sload(0), callvalue()))
+
+        mstore(0, callvalue())
+        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
+            0, recipient)
+      }
+
       case sig"withdraw(uint amount) public" {
         mstruct withdraw(sig: 4, amount: 32)
         let amount := withdraw.amount(_calldata)
