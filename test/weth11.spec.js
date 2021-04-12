@@ -78,9 +78,17 @@ describe("WETH11", function() {
 
       it('withdraws ether', async () => {
         const balanceBefore = await weth.balanceOf(await user1.getAddress())
-        await weth.withdraw(1)
+        const ethBalanceBefore = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
+
+        const tx = await weth.withdraw(1)
+        const receipt = await tx.wait()
+        const ethSpentOnGas = ethers.BigNumber.from(receipt.gasUsed).mul(tx.gasPrice) 
+
         const balanceAfter = await weth.balanceOf(await user1.getAddress())
+        const ethBalanceAfter = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
+
         expect(balanceAfter).to.equal(balanceBefore.sub('1'))
+        expect(ethBalanceAfter).to.equal(ethBalanceBefore.add('1').sub(ethSpentOnGas))
       })
 
       it('withdraws ether to another account', async () => {
@@ -134,12 +142,12 @@ describe("WETH11", function() {
 
       it('withdraws ether by transferring from someone to address(0)', async () => {
         const balanceBefore = await weth.balanceOf(await user1.getAddress())
-        const ethBalanceBefore = ethers.BigNumber.from(await ethers.provider.getBalance(user1))
+        const ethBalanceBefore = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
         
         await weth.transferFrom(await user1.getAddress(), '0x0000000000000000000000000000000000000000', 1)
         
         const balanceAfter = await weth.balanceOf(await user1.getAddress())
-        const ethBalanceAfter = ethers.BigNumber.from(await ethers.provider.getBalance(user1))
+        const ethBalanceAfter = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
         
         expect(balanceAfter).to.equal(balanceBefore.sub('1'))
         expect(ethBalanceAfter).to.equal(ethBalanceBefore.add('1'))
@@ -170,7 +178,7 @@ describe("WETH11", function() {
         const allowanceBefore = await weth.allowance(await user1.getAddress(), await user2.getAddress())
         await weth.approve(await user2.getAddress(), 1)
         const allowanceAfter = await weth.allowance(await user1.getAddress(), await user2.getAddress())
-        allowanceAfter.toString().should.equal(allowanceBefore.add('1'))
+        expect(allowanceAfter).to.equal(allowanceBefore.add('1'))
       })
 
       it('approves with approveAndCall', async () => {
