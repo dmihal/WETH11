@@ -102,6 +102,28 @@ object "WETH11" {
             caller(), 0)
       }
 
+      case sig"withdrawTo(address recipient, uint amount) public" {
+        mstruct withdrawTo(sig: 4, recipient: 32, amount: 32)
+        let amount := withdrawTo.amount(_calldata)
+
+        // balanceOf[dst] = add(balanceOf[dst], wad);
+        let balanceOfDestination := sload(mappingStorageKey(caller(), Storage.balance))
+        // TODO: check for balance
+        sstore(mappingStorageKey(caller(), Storage.balance),
+            sub(balanceOfDestination, amount))
+
+        // totalSupply
+        sstore(0, sub(sload(0), amount))
+
+        // ETH transfer
+        let success := call(gas(), withdrawTo.recipient(_calldata), amount, 0, 0, 0, 0)
+        require(success, error"withdraw failed")
+
+        mstore(0, amount)
+        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
+            caller(), 0)
+      }
+
       case sig"approve(address destination, uint256 amount) public returns (bool success)" {
         mstruct approve(sig: 4, destination: 32, amount: 32)
 

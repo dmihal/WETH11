@@ -100,8 +100,8 @@ describe("WETH11", function() {
         const fromBalanceAfter = await weth.balanceOf(await user1.getAddress())
         const toBalanceAfter = ethers.BigNumber.from(await ethers.provider.getBalance(await user2.getAddress()))
 
-        fromexpect(balanceAfter).to.equal(fromBalanceBefore.sub('1'))
-        toexpect(balanceAfter).to.equal(toBalanceBefore.add('1'))
+        expect(fromBalanceAfter).to.equal(fromBalanceBefore.sub('1'))
+        expect(toBalanceAfter).to.equal(toBalanceBefore.add('1'))
       })
 
       it('should not withdraw beyond balance', async () => {
