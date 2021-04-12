@@ -88,12 +88,23 @@ object "WETH11" {
       }
 
       case sig"name() public view returns (string)" {
-        mstore(0, "Wrapped Ether")
-        return(0, 32)
+        mstore(0, 0x20)
+
+        let length := 16
+        mstore(0x20, length)
+        mstore(0x40, "Wrapped Ether 11")
+
+        return(0, 0x60)
       }
+
       case sig"symbol() public view returns (string)" {
-        mstore(0, "WETH")
-        return(0, 32)
+        mstore(0, 0x20)
+
+        let length := 6
+        mstore(0x20, length)
+        mstore(0x40, "WETH11")
+
+        return(0, 0x60)
       }
 
       case sig"decimals() public view returns (uint8)" {

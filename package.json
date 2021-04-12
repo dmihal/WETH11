@@ -10,5 +10,8 @@
     "hardhat": "^2.1.2",
     "hardhat-yulp": "^0.0.5",
     "yulp": "^0.2.3"
+  },
+  "devDependencies": {
+    "chai": "^4.3.4"
   }
 }
