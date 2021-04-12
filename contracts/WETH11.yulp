@@ -51,7 +51,7 @@ object "WETH11" {
         // balanceOf[dst] = add(balanceOf[dst], wad);
         let balanceOfDestination := sload(mappingStorageKey(caller(), Storage.balance))
         sstore(mappingStorageKey(caller(), Storage.balance),
-            add(balanceOfDestination, amount))
+            sub(balanceOfDestination, amount))
 
         // totalSupply
         sstore(0, sub(sload(0), amount))
