@@ -10,6 +10,24 @@ object "WETH11" {
 
       enum Storage (balance, allowance) // storage index numbers.
 
+      if eq(calldatasize(), 0) {
+        require(gt(callvalue(), 0))
+        // Fallback payable deposit
+
+        // balanceOf[dst] = add(balanceOf[dst], wad);
+        let balanceOfDestination := sload(mappingStorageKey(caller(), Storage.balance))
+        sstore(mappingStorageKey(caller(), Storage.balance),
+            add(balanceOfDestination, callvalue()))
+
+        // totalSupply
+        sstore(0, add(sload(0), callvalue()))
+
+        mstore(0, callvalue())
+        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
+            0, caller())
+        stop()
+      }
+
       calldatacopy(_calldata, 0, calldatasize()) // copy all calldata to memory.
 
       switch mslice(_calldata, 4) // 4 byte calldata signature.
