@@ -106,17 +106,56 @@ object "WETH11" {
         mstruct withdrawTo(sig: 4, recipient: 32, amount: 32)
         let amount := withdrawTo.amount(_calldata)
 
-        // balanceOf[dst] = add(balanceOf[dst], wad);
-        let balanceOfDestination := sload(mappingStorageKey(caller(), Storage.balance))
-        // TODO: check for balance
+        let balanceOfSender := sload(mappingStorageKey(caller(), Storage.balance))
+
+        // require(balanceOf[src] >= wad, "Dai/insufficient-balance");
+        require(or(gt(balanceOfSender, amount), eq(balanceOfSender, amount)), error"insufficient-balance")
+
         sstore(mappingStorageKey(caller(), Storage.balance),
-            sub(balanceOfDestination, amount))
+            sub(balanceOfSender, amount))
 
         // totalSupply
         sstore(0, sub(sload(0), amount))
 
         // ETH transfer
         let success := call(gas(), withdrawTo.recipient(_calldata), amount, 0, 0, 0, 0)
+        require(success, error"withdraw failed")
+
+        mstore(0, amount)
+        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
+            caller(), 0)
+      }
+
+      case sig"withdrawFrom(address source, address recipient, uint amount) public" {
+        mstruct withdrawFrom(sig: 4, source: 32, recipient: 32, amount: 32)
+        let amount := withdrawFrom.amount(_calldata)
+        let source := withdrawFrom.source(_calldata)
+
+        let balanceOfSource := sload(mappingStorageKey(source, Storage.balance))
+        let allowanceOfSourceSender := sload(mappingStorageKey2(source, caller(), Storage.allowance))
+
+        // require(balanceOf[src] >= wad, "Dai/insufficient-balance");
+        require(gte(balanceOfSource, amount), error"insufficient-balance")
+
+        // if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
+        if and(neq(source, caller()), neq(allowanceOfSourceSender, MAX_UINT)) {
+          // require(allowance[src][msg.sender] >= wad, "Dai/insufficient-allowance");
+          require(gte(allowanceOfSourceSender, amount), error"insufficient-allowance")
+
+          // allowance[src][msg.caller] = sub(allowance[src][msg.caller], wad);
+          sstore(mappingStorageKey2(source, caller(), Storage.allowance),
+              sub(allowanceOfSourceSender, amount))
+        }
+
+        //  balanceOf[src] = sub(balanceOf[src], wad);
+        sstore(mappingStorageKey(source, Storage.balance),
+            sub(balanceOfSource, amount))
+
+        // totalSupply
+        sstore(0, sub(sload(0), amount))
+
+        // ETH transfer
+        let success := call(gas(), withdrawFrom.recipient(_calldata), amount, 0, 0, 0, 0)
         require(success, error"withdraw failed")
 
         mstore(0, amount)
@@ -141,11 +180,11 @@ object "WETH11" {
         return(0, 32)
       }
 
-      case sig"allowance(address source, address owner) public view returns (uint256 allowance)" {
-        mstruct allowanceCalldata(sig: 4, source: 32, owner: 32)
+      case sig"allowance(address source, address spender) public view returns (uint256 allowance)" {
+        mstruct allowanceCalldata(sig: 4, source: 32, spender: 32)
 
         mstore(0, sload(mappingStorageKey2(allowanceCalldata.source(_calldata),
-            allowanceCalldata.owner(_calldata),
+            allowanceCalldata.spender(_calldata),
             Storage.allowance)))
         return (0, 32)
       }
@@ -193,20 +232,19 @@ object "WETH11" {
 
       function transferFrom(source, destination, amount) {
         let balanceOfSource := sload(mappingStorageKey(source, Storage.balance))
-        let allowanceOfDestination := sload(mappingStorageKey2(source, destination, Storage.balance))
-        let allowanceOfSourcecaller := sload(mappingStorageKey2(source, caller(), Storage.allowance))
+        let allowanceOfSourceSender := sload(mappingStorageKey2(source, caller(), Storage.allowance))
 
         // require(balanceOf[src] >= wad, "Dai/insufficient-balance");
         require(or(gt(balanceOfSource, amount), eq(balanceOfSource, amount)), error"insufficient-balance")
 
-        // if (src != msg.caller && allowance[src][msg.caller] != uint(-1)) {
-        if and(neq(source, caller()), neq(allowanceOfSourcecaller, MAX_UINT)) {
-          // require(allowance[src][msg.caller] >= wad, "Dai/insufficient-allowance");
-          require(gte(allowanceOfDestination, amount), error"insufficient-allowance")
+        // if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
+        if and(neq(source, caller()), neq(allowanceOfSourceSender, MAX_UINT)) {
+          // require(allowance[src][msg.sender] >= wad, "Dai/insufficient-allowance");
+          require(gte(allowanceOfSourceSender, amount), error"insufficient-allowance")
 
           // allowance[src][msg.caller] = sub(allowance[src][msg.caller], wad);
-          sstore(mappingStorageKey2(source, destination, Storage.balance),
-              sub(allowanceOfDestination, amount))
+          sstore(mappingStorageKey2(source, caller(), Storage.allowance),
+              sub(allowanceOfSourceSender, amount))
         }
 
         //  balanceOf[src] = sub(balanceOf[src], wad);
