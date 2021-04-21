@@ -57,13 +57,12 @@ describe("WETH11", function() {
     it('deposits with depositToAndCall', async () => {
       await weth.depositToAndCall(receiver.address, '0x11', { value: 1 })
 
-      const events = await receiver.getPastEvents()
-      events.length.should.equal(1)
-      events[0].event.should.equal('TransferReceived')
-      events[0].returnValues.token.should.equal(weth.address)
-      events[0].returnValues.sender.should.equal(await user1.getAddress())
-      events[0].returnValues.value.should.equal('1')
-      events[0].returnValues.data.should.equal('0x11')
+      const events = await receiver.queryFilter('TransferReceived')
+      expect(events.length).to.equal(1)
+      expect(events[0].args.token).to.equal(weth.address)
+      expect(events[0].args.sender).to.equal(await user1.getAddress())
+      expect(events[0].args.value).to.equal('1')
+      expect(events[0].args.data).to.equal('0x11')
     })
 
     describe('with a positive balance', async () => {
@@ -156,7 +155,7 @@ describe("WETH11", function() {
       it('transfers with transferAndCall', async () => {
         const tx = await weth.transferAndCall(receiver.address, 1, '0x11')
 
-        const events = await receiver.queryFilter('TransferReceived')
+        const events = await receiver.queryFilter('TransferReceived', tx.blockNumber)
         expect(events.length).to.equal(1)
         expect(events[0].args.token).to.equal(weth.address)
         expect(events[0].args.sender).to.equal(await user1.getAddress())

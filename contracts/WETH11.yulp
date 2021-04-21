@@ -59,7 +59,6 @@ object "WETH11" {
         // Note: we can copy the 'data' param directly from the calldata including the offset
         // position, since both calls include the same number of preceeding variables
         calldatacopy(68, 68, dataSize)
-        log0(0, add(dataSize, 68))
 
         // Call recipient
         let success := call(gas(), recipient, 0, 0, add(dataSize, 68), 0, 0)
@@ -109,6 +108,41 @@ object "WETH11" {
 
         // totalSupply
         sstore(0, add(sload(0), callvalue()))
+
+        mstore(0, callvalue())
+        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
+            0, recipient)
+      }
+
+      case sig"depositToAndCall(address recipient, bytes data) public" {
+        mstruct depositToAndCall(sig: 4, recipient: 32)
+        let recipient := depositToAndCall.recipient(_calldata)
+
+        // balanceOf[dst] = add(balanceOf[dst], wad);
+        // TODO: consolidate multiple mappingStorageKey (whole file)
+        let balanceOfDestination := sload(mappingStorageKey(recipient, Storage.balance))
+        sstore(mappingStorageKey(recipient, Storage.balance),
+            add(balanceOfDestination, callvalue()))
+
+        // totalSupply
+        sstore(0, add(sload(0), callvalue()))
+
+        let dataSize := sub(calldatasize(), 0x44) // Unlike other *AndCall functions, we're not copying the "offset" pos
+
+        mstore(0, shl(224, sig"onTokenTransfer(address sender, uint256 value, bytes data) external returns (bool)"))
+        mstore(0x04, caller())
+        mstore(0x24, callvalue())
+        // Note: we can copy the 'data' param directly from the calldata including the offset
+        // position, since both calls include the same number of preceeding variables
+        mstore(0x44, 0x60) // The 'data' param is stored at offset 0x60 in the calldata (not including signature)
+        calldatacopy(0x64, 0x44, dataSize)
+
+        // Call recipient
+        let success := call(gas(), recipient, 0, 0, add(dataSize, 0x64), 0, 0)
+        // Ensure recipient is a contract, not an EOA
+        require(returndatasize(), error"not a contract")
+        // Check that execution succeeded
+        require(success, error"hook failed")
 
         mstore(0, callvalue())
         log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
@@ -237,7 +271,6 @@ object "WETH11" {
         // Note: we can copy the 'data' param directly from the calldata including the offset
         // position, since both calls include the same number of preceeding variables
         calldatacopy(68, 68, dataSize)
-        log0(0, add(dataSize, 68))
 
         // Call recipient
         let success := call(gas(), recipient, 0, 0, add(dataSize, 68), 0, 0)
