@@ -38,6 +38,38 @@ object "WETH11" {
         transferFrom(caller(),
           transfer.owner(_calldata),
           transfer.amount(_calldata))
+
+        mstore(0, true)
+        return(0, 32)
+      }
+
+      case sig"transferAndCall(address recipient, uint256 amount, bytes data) public returns (bool)" {
+        mstruct transferAndCall(sig: 4, recipient: 32, amount: 32)
+
+        let recipient := transferAndCall.recipient(_calldata)
+        let amount := transferAndCall.amount(_calldata)
+
+        transferFrom(caller(), recipient, transferAndCall.amount(_calldata))
+
+        let dataSize := sub(calldatasize(), 68)
+
+        mstore(0, shl(224, sig"onTokenTransfer(address sender, uint256 value, bytes data) external returns (bool)"))
+        mstore(4, caller())
+        mstore(36, amount)
+        // Note: we can copy the 'data' param directly from the calldata including the offset
+        // position, since both calls include the same number of preceeding variables
+        calldatacopy(68, 68, dataSize)
+        log0(0, add(dataSize, 68))
+
+        // Call recipient
+        let success := call(gas(), recipient, 0, 0, add(dataSize, 68), 0, 0)
+        // Ensure recipient is a contract, not an EOA
+        require(returndatasize(), error"not a contract")
+        // Check that execution succeeded
+        require(success, error"hook failed")
+
+        mstore(0, true)
+        return(0, 32)
       }
 
       case sig"transferFrom(address source, address destination, uint amount) public returns (bool success)" {
@@ -46,6 +78,9 @@ object "WETH11" {
           transferFrom(transferFromCalldata.source(_calldata),
               transferFromCalldata.destination(_calldata),
               transferFromCalldata.amount(_calldata))
+
+        mstore(0, true)
+        return(0, 32)
       }
 
       case sig"deposit() public" {
@@ -259,9 +294,6 @@ object "WETH11" {
         mstore(0, amount)
         log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
             source, destination)
-
-        mstore(0, true)
-        return(0, 32)
       }
 
       // Solidity Style Storage Key: mapping(bytes32 => bytes32)

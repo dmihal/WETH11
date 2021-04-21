@@ -154,15 +154,18 @@ describe("WETH11", function() {
       })
 
       it('transfers with transferAndCall', async () => {
-        await weth.transferAndCall(receiver.address, 1, '0x11')
+        const tx = await weth.transferAndCall(receiver.address, 1, '0x11')
 
-        const events = await receiver.getPastEvents()
-        events.length.should.equal(1)
-        events[0].event.should.equal('TransferReceived')
-        events[0].returnValues.token.should.equal(weth.address)
-        events[0].returnValues.sender.should.equal(await user1.getAddress())
-        events[0].returnValues.value.should.equal('1')
-        events[0].returnValues.data.should.equal('0x11')
+        const events = await receiver.queryFilter('TransferReceived')
+        expect(events.length).to.equal(1)
+        expect(events[0].args.token).to.equal(weth.address)
+        expect(events[0].args.sender).to.equal(await user1.getAddress())
+        expect(events[0].args.value).to.equal('1')
+        expect(events[0].args.data).to.equal('0x11')
+      })
+
+      it('should fail with transferAndCall if recipient is not a contract', async () => {
+        await expect(weth.transferAndCall(await user2.getAddress(), 1, '0x11')).to.be.reverted
       })
 
       it('should not transfer beyond balance', async () => {
