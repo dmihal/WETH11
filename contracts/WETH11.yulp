@@ -32,12 +32,19 @@ object "WETH11" {
 
       switch mslice(_calldata, 4) // 4 byte calldata signature.
 
-      case sig"transfer(address owner, uint256 amount) public returns (bool success)" {
-        mstruct transfer(sig: 4, owner: 32, amount: 32)
+      case sig"transfer(address recipient, uint256 amount) public returns (bool success)" {
+        mstruct transfer(sig: 4, recipient: 32, amount: 32)
 
-        transferFrom(caller(),
-          transfer.owner(_calldata),
-          transfer.amount(_calldata))
+        let recipient := transfer.recipient(_calldata)
+        let amount := transfer.amount(_calldata)
+
+        if eq(recipient, 0) {
+          withdraw(caller(), caller(), amount)
+        }
+
+        if gt(recipient, 0) {
+          transferFrom(caller(), recipient, amount)
+        }
 
         mstore(0, true)
         return(0, 32)
@@ -72,11 +79,19 @@ object "WETH11" {
       }
 
       case sig"transferFrom(address source, address destination, uint amount) public returns (bool success)" {
-          mstruct transferFromCalldata(sig: 4, source: 32, destination: 32, amount: 32)
+        mstruct transferFromCalldata(sig: 4, source: 32, destination: 32, amount: 32)
 
-          transferFrom(transferFromCalldata.source(_calldata),
-              transferFromCalldata.destination(_calldata),
-              transferFromCalldata.amount(_calldata))
+        let source := transferFromCalldata.source(_calldata)
+        let destination := transferFromCalldata.destination(_calldata)
+        let amount := transferFromCalldata.amount(_calldata)
+
+        if eq(destination, 0) {
+          withdraw(source, caller(), amount)
+        }
+
+        if gt(destination, 0) {
+          transferFrom(source, destination, amount)
+        }
 
         mstore(0, true)
         return(0, 32)
@@ -153,46 +168,14 @@ object "WETH11" {
         mstruct withdraw(sig: 4, amount: 32)
         let amount := withdraw.amount(_calldata)
 
-        // balanceOf[dst] = add(balanceOf[dst], wad);
-        let balanceOfDestination := sload(mappingStorageKey(caller(), Storage.balance))
-        // TODO: check for balance
-        sstore(mappingStorageKey(caller(), Storage.balance),
-            sub(balanceOfDestination, amount))
-
-        // totalSupply
-        sstore(0, sub(sload(0), amount))
-
-        // ETH transfer
-        let success := call(gas(), caller(), amount, 0, 0, 0, 0)
-        require(success, error"withdraw failed")
-
-        mstore(0, amount)
-        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
-            caller(), 0)
+        withdraw(caller(), caller(), amount)
       }
 
       case sig"withdrawTo(address recipient, uint amount) public" {
         mstruct withdrawTo(sig: 4, recipient: 32, amount: 32)
         let amount := withdrawTo.amount(_calldata)
 
-        let balanceOfSender := sload(mappingStorageKey(caller(), Storage.balance))
-
-        // require(balanceOf[src] >= wad, "Dai/insufficient-balance");
-        require(or(gt(balanceOfSender, amount), eq(balanceOfSender, amount)), error"insufficient-balance")
-
-        sstore(mappingStorageKey(caller(), Storage.balance),
-            sub(balanceOfSender, amount))
-
-        // totalSupply
-        sstore(0, sub(sload(0), amount))
-
-        // ETH transfer
-        let success := call(gas(), withdrawTo.recipient(_calldata), amount, 0, 0, 0, 0)
-        require(success, error"withdraw failed")
-
-        mstore(0, amount)
-        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
-            caller(), 0)
+        withdraw(caller(), withdrawTo.recipient(_calldata), amount)
       }
 
       case sig"withdrawFrom(address source, address recipient, uint amount) public" {
@@ -200,36 +183,7 @@ object "WETH11" {
         let amount := withdrawFrom.amount(_calldata)
         let source := withdrawFrom.source(_calldata)
 
-        let balanceOfSource := sload(mappingStorageKey(source, Storage.balance))
-        let allowanceOfSourceSender := sload(mappingStorageKey2(source, caller(), Storage.allowance))
-
-        // require(balanceOf[src] >= wad, "Dai/insufficient-balance");
-        require(gte(balanceOfSource, amount), error"insufficient-balance")
-
-        // if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
-        if and(neq(source, caller()), neq(allowanceOfSourceSender, MAX_UINT)) {
-          // require(allowance[src][msg.sender] >= wad, "Dai/insufficient-allowance");
-          require(gte(allowanceOfSourceSender, amount), error"insufficient-allowance")
-
-          // allowance[src][msg.caller] = sub(allowance[src][msg.caller], wad);
-          sstore(mappingStorageKey2(source, caller(), Storage.allowance),
-              sub(allowanceOfSourceSender, amount))
-        }
-
-        //  balanceOf[src] = sub(balanceOf[src], wad);
-        sstore(mappingStorageKey(source, Storage.balance),
-            sub(balanceOfSource, amount))
-
-        // totalSupply
-        sstore(0, sub(sload(0), amount))
-
-        // ETH transfer
-        let success := call(gas(), withdrawFrom.recipient(_calldata), amount, 0, 0, 0, 0)
-        require(success, error"withdraw failed")
-
-        mstore(0, amount)
-        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
-            caller(), 0)
+        withdraw(source, withdrawFrom.recipient(_calldata), amount)
       }
 
       case sig"approve(address destination, uint256 amount) public returns (bool success)" {
@@ -339,7 +293,7 @@ object "WETH11" {
         let allowanceOfSourceSender := sload(mappingStorageKey2(source, caller(), Storage.allowance))
 
         // require(balanceOf[src] >= wad, "Dai/insufficient-balance");
-        require(or(gt(balanceOfSource, amount), eq(balanceOfSource, amount)), error"insufficient-balance")
+        require(gte(balanceOfSource, amount), error"insufficient-balance")
 
         // if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
         if and(neq(source, caller()), neq(allowanceOfSourceSender, MAX_UINT)) {
@@ -363,6 +317,39 @@ object "WETH11" {
         mstore(0, amount)
         log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
             source, destination)
+      }
+
+      function withdraw(source, destination, amount) {
+        // balanceOf[dst] = add(balanceOf[dst], wad);
+        let balanceOfCaller := sload(mappingStorageKey(source, Storage.balance))
+        require(gte(balanceOfCaller, amount), error"insufficient-balance")
+
+        if neq(source, caller()) {
+          // require(allowance[source][msg.sender] >= wad, "insufficient-allowance");
+          let allowanceStorageKey := mappingStorageKey2(source, caller(), Storage.allowance)
+          let allowanceOfSourceSender := sload(allowanceStorageKey)
+          require(gte(allowanceOfSourceSender, amount), error"insufficient-allowance")
+
+          if neq(allowanceOfSourceSender, MAX_UINT) {
+            // allowance[source][msg.sender] = sub(allowance[source][msg.sender], wad);
+            sstore(allowanceStorageKey, sub(allowanceOfSourceSender, amount))
+          }
+        }
+
+        // TODO: reuse storage key
+        sstore(mappingStorageKey(source, Storage.balance),
+            sub(balanceOfCaller, amount))
+
+        // totalSupply
+        sstore(0, sub(sload(0), amount))
+
+        // ETH transfer
+        let success := call(gas(), destination, amount, 0, 0, 0, 0)
+        require(success, error"withdraw failed")
+
+        mstore(0, amount)
+        log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
+            source, 0)
       }
 
       // Solidity Style Storage Key: mapping(bytes32 => bytes32)
