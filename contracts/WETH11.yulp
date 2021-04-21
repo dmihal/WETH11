@@ -215,6 +215,42 @@ object "WETH11" {
         return(0, 32)
       }
 
+      case sig"approveAndCall(address recipient, uint256 amount, bytes data) public returns (bool)" {
+        mstruct approveAndCall(sig: 4, recipient: 32, amount: 32)
+
+        let recipient := approveAndCall.recipient(_calldata)
+        let amount := approveAndCall.amount(_calldata)
+
+        sstore(mappingStorageKey2(caller(), recipient, Storage.allowance), amount)
+
+        mstore(0, amount)
+        log3(0, 32,
+            topic"event Approval(address indexed source, address indexed destination, uint256 amount)",
+            caller(),
+            recipient)
+
+        let dataSize := sub(calldatasize(), 68)
+
+        mstore(0, shl(224, sig"onTokenApproval(address sender, uint256 value, bytes data) external returns (bool)"))
+        mstore(4, caller())
+        mstore(36, amount)
+        // Note: we can copy the 'data' param directly from the calldata including the offset
+        // position, since both calls include the same number of preceeding variables
+        calldatacopy(68, 68, dataSize)
+        log0(0, add(dataSize, 68))
+
+        // Call recipient
+        let success := call(gas(), recipient, 0, 0, add(dataSize, 68), 0, 0)
+        // Ensure recipient is a contract, not an EOA
+        require(returndatasize(), error"not a contract")
+        // Check that execution succeeded
+        require(success, error"hook failed")
+
+        mstore(0, true)
+        return(0, 32)
+      }
+
+
       case sig"allowance(address source, address spender) public view returns (uint256 allowance)" {
         mstruct allowanceCalldata(sig: 4, source: 32, spender: 32)
 
