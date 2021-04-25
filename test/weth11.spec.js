@@ -33,6 +33,19 @@ describe("WETH11", function() {
       expect(symbol).to.equal('WETH11')
     })
 
+    it('returns the DOMAIN_SEPARATOR', async () => {
+      const { chainId } = await ethers.provider.getNetwork();
+      const domain = ethers.utils._TypedDataEncoder.hashDomain({
+        name: 'WETH11',
+        version: '1',
+        chainId: chainId,
+        verifyingContract: weth.address,
+      });
+
+      const domainSeparator = await weth.DOMAIN_SEPARATOR();
+      expect(domainSeparator).to.equal(domain)
+    })
+
     it('deposits ether', async () => {
       const balanceBefore = await weth.balanceOf(await user1.getAddress())
       await weth.deposit({ value: 1 })
