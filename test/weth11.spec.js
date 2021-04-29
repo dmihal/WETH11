@@ -36,7 +36,7 @@ describe("WETH11", function() {
     it('returns the DOMAIN_SEPARATOR', async () => {
       const { chainId } = await ethers.provider.getNetwork();
       const domain = ethers.utils._TypedDataEncoder.hashDomain({
-        name: 'WETH11',
+        name: 'Wrapped Ether 11',
         version: '1',
         chainId: chainId,
         verifyingContract: weth.address,
@@ -222,21 +222,21 @@ describe("WETH11", function() {
         const permitResult = await signERC2612Permit(network.provider, weth.address, await user1.getAddress(), await user2.getAddress(), '1')
         await weth.permit(await user1.getAddress(), await user2.getAddress(), '1', permitResult.deadline, permitResult.v, permitResult.r, permitResult.s)
         const allowanceAfter = await weth.allowance(await user1.getAddress(), await user2.getAddress())
-        allowanceAfter.toString().should.equal('1')
+        expect(allowanceAfter).to.equal('1')
       })
 
       it('does not approve with expired permit', async () => {
         const permitResult = await signERC2612Permit(network.provider, weth.address, await user1.getAddress(), await user2.getAddress(), '1')
         await expect(weth.permit(
           await user1.getAddress(), await user2.getAddress(), '1', 0, permitResult.v, permitResult.r, permitResult.s),
-          ).to.revertWith('WETH: Expired permit')
+          ).to.be.reverted
       })
 
       it('does not approve with invalid permit', async () => {
         const permitResult = await signERC2612Permit(network.provider, weth.address, await user1.getAddress(), await user2.getAddress(), '1')
         await expect(
           weth.permit(await user1.getAddress(), await user2.getAddress(), '2', permitResult.deadline, permitResult.v, permitResult.r, permitResult.s),
-          ).to.revertWith('WETH: invalid permit')
+        ).to.be.reverted
       })
 
       describe('with a positive allowance', async () => {

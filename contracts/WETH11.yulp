@@ -14,8 +14,8 @@ object "WETH11" {
     function calculateDomainSeparator(chainId) -> domainSeparator {
       // keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
       mstore(0x0, 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f)
-      // name: keccak256("WETH11")
-      mstore(0x20, 0x6511940f74bd7fbac6f87831fe47e529c227b25dde5a494bd8fd7e0387f696d8)
+      // name: keccak256("Wrapped Ether 11")
+      mstore(0x20, 0xd5ab6b92ca94fac4771fe725a086a0093ce4fe119d380b5dddffede9c0051adb)
       // version: keccak256("1")
       mstore(0x40, 0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6)
       mstore(0x60, chainId)
@@ -29,7 +29,7 @@ object "WETH11" {
     code {
       const _calldata := 128 // leave first 4 32 byte chunks for hashing, returns etc..
 
-      enum Storage (balance, allowance) // storage index numbers.
+      enum Storage (balance, allowance, nonce) // storage index numbers.
 
       if eq(calldatasize(), 0) {
         require(gt(callvalue(), 0), error"empty tx")
@@ -258,6 +258,67 @@ object "WETH11" {
         return(0, 32)
       }
 
+      case sig"permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external" {
+        mstruct permit(sig: 4, owner: 32, spender: 32, value: 32, deadline: 32, v: 32, r: 32, s: 32)
+
+        // Load the calldata onto the stack. We're going to overwrite the first few values soon
+        const owner := permit.owner(_calldata)
+        const spender := permit.spender(_calldata)
+        const value := permit.value(_calldata)
+        const deadline := permit.deadline(_calldata)
+        const v := permit.v(_calldata)
+        const r := permit.r(_calldata)
+        const s := permit.s(_calldata)
+
+        require(gt(permit.deadline(_calldata), timestamp()), error"PermitExpired()")
+
+        const nonceSlot := mappingStorageKey(Storage.nonce, owner)
+        let nonce := sload(nonceSlot)
+        // nonce[owner] += 1
+        sstore(nonceSlot, add(nonce, 1))
+
+        // keccak("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
+        mstore(0x0, 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9)
+        mstore(0x20, owner)
+        mstore(0x40, spender)
+        mstore(0x60, value)
+        mstore(0x80, nonce)
+        mstore(0xa0, deadline)
+        const hashStruct := keccak256(0x0, 0xc0)
+
+        let domainSeparator := loadimmutable("initialDomainSeparator")
+        if neq(loadimmutable("initialChainID"), chainid()) {
+          // If the chainId has changed (chain fork), recalculate the separator
+          domainSeparator := calculateDomainSeparator(chainid())
+        }
+
+        mstore(0x0, 0x1901000000000000000000000000000000000000000000000000000000000000)
+        mstore(0x2, domainSeparator)
+        mstore(0x22, hashStruct)
+        const hash := keccak256(0x0, 0x42)
+
+        mstore(0, hash)
+        mstore(0x20, v)
+        mstore(0x40, r)
+        mstore(0x60, s)
+        const ecrecoverSuccess := staticcall(gas(), 0x1, 0, 128, 0, 32) // ecrecover(hash, v, r, s)
+        require(ecrecoverSuccess)
+        const signer := mload(0)
+
+        const signerIsNotZero := neq(signer, 0x00)
+        require(signerIsNotZero, error"Signer is zero")
+
+        const signerIsOwner := eq(signer, owner)
+        require(signerIsOwner, error"Invalid signature")
+
+        sstore(mappingStorageKey2(owner, spender, Storage.allowance), value)
+
+        mstore(0, value)
+        log3(0, 32,
+            topic"event Approval(address indexed source, address indexed destination, uint256 amount)",
+            owner,
+            spender)
+      }
 
       case sig"allowance(address source, address spender) public view returns (uint256 allowance)" {
         mstruct allowanceCalldata(sig: 4, source: 32, spender: 32)
@@ -314,6 +375,13 @@ object "WETH11" {
         mstruct calldata.balanceOf(sig: 4, owner: 32)
         mstore(0, sload(mappingStorageKey(calldata.balanceOf.owner(_calldata),
             Storage.balance)))
+        return (0, 32)
+      }
+
+      case sig"nonces(address owner) public view returns (uint256 balance)" {
+        mstruct calldata.nonce(sig: 4, owner: 32)
+        mstore(0, sload(mappingStorageKey(calldata.nonce.owner(_calldata),
+            Storage.nonce)))
         return (0, 32)
       }
 
@@ -389,8 +457,8 @@ object "WETH11" {
       function calculateDomainSeparator(chainId) -> domainSeparator {
         // keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
         mstore(0x0, 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f)
-        // name: keccak256("WETH11")
-        mstore(0x20, 0x6511940f74bd7fbac6f87831fe47e529c227b25dde5a494bd8fd7e0387f696d8)
+        // name: keccak256("Wrapped Ether 11")
+        mstore(0x20, 0xd5ab6b92ca94fac4771fe725a086a0093ce4fe119d380b5dddffede9c0051adb)
         // version: keccak256("1")
         mstore(0x40, 0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6)
         mstore(0x60, chainId)
