@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { signERC2612Permit } = require('eth-permit');
 
-const MAX = "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+const MAX = "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 
 describe("WETH11", function() {
   let user1;
@@ -245,15 +245,15 @@ describe("WETH11", function() {
         })
 
         it('transfers ether using transferFrom and allowance', async () => {
-          const balanceBefore = await weth.balanceOf(await user3.getAddress())
+          const balanceBefore = await weth.balanceOf(await user2.getAddress())
           await weth.connect(user2).transferFrom(await user1.getAddress(), await user2.getAddress(), 1)
-          const balanceAfter = await weth.balanceOf(await user3.getAddress())
+          const balanceAfter = await weth.balanceOf(await user2.getAddress())
           expect(balanceAfter).to.equal(balanceBefore.add('1'))
         })
 
         it('should not transfer beyond allowance', async () => {
           await expect(weth.connect(user2).transferFrom(await user1.getAddress(), await user2.getAddress(), 2))
-            .to.be.revertedWith('WETH: request exceeds allowance')
+            .to.be.reverted
         })
   
         it('withdraws ether using withdrawFrom and allowance', async () => {
