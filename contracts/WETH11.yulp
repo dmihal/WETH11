@@ -35,13 +35,11 @@ object "WETH11" {
         require(gt(callvalue(), 0), error"empty tx")
         // Fallback payable deposit
 
-        // balanceOf[dst] = add(balanceOf[dst], wad);
-        let balanceOfDestination := sload(mappingStorageKey(caller(), Storage.balance))
-        sstore(mappingStorageKey(caller(), Storage.balance),
-            add(balanceOfDestination, callvalue()))
+        const callerBalanceSlot := mappingStorageKey(caller(), Storage.balance)
 
-        // totalSupply
-        sstore(0, add(sload(0), callvalue()))
+        // balanceOf[dst] = add(balanceOf[dst], wad);
+        let balanceOfDestination := sload(callerBalanceSlot)
+        sstore(callerBalanceSlot, add(balanceOfDestination, callvalue()))
 
         mstore(0, callvalue())
         log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
@@ -119,13 +117,10 @@ object "WETH11" {
       }
 
       case sig"deposit() public" {
+        const depositorBalanceSlot := mappingStorageKey(caller(), Storage.balance)
         // balanceOf[dst] = add(balanceOf[dst], wad);
-        let balanceOfDestination := sload(mappingStorageKey(caller(), Storage.balance))
-        sstore(mappingStorageKey(caller(), Storage.balance),
-            add(balanceOfDestination, callvalue()))
-
-        // totalSupply
-        sstore(0, add(sload(0), callvalue()))
+        let balanceOfDestination := sload(depositorBalanceSlot)
+        sstore(depositorBalanceSlot, add(balanceOfDestination, callvalue()))
 
         mstore(0, callvalue())
         log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
@@ -136,14 +131,11 @@ object "WETH11" {
         mstruct depositTo(sig: 4, recipient: 32)
         let recipient := depositTo.recipient(_calldata)
 
+        const recipientBalanceSlot := mappingStorageKey(recipient, Storage.balance)
         // balanceOf[dst] = add(balanceOf[dst], wad);
         // TODO: consolidate multiple mappingStorageKey (whole file)
-        let balanceOfDestination := sload(mappingStorageKey(recipient, Storage.balance))
-        sstore(mappingStorageKey(recipient, Storage.balance),
-            add(balanceOfDestination, callvalue()))
-
-        // totalSupply
-        sstore(0, add(sload(0), callvalue()))
+        let balanceOfDestination := sload(recipientBalanceSlot)
+        sstore(recipientBalanceSlot, add(balanceOfDestination, callvalue()))
 
         mstore(0, callvalue())
         log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
@@ -154,14 +146,11 @@ object "WETH11" {
         mstruct depositToAndCall(sig: 4, recipient: 32)
         let recipient := depositToAndCall.recipient(_calldata)
 
+        const recipientBalanceSlot2 := mappingStorageKey(recipient, Storage.balance)
         // balanceOf[dst] = add(balanceOf[dst], wad);
         // TODO: consolidate multiple mappingStorageKey (whole file)
-        let balanceOfDestination := sload(mappingStorageKey(recipient, Storage.balance))
-        sstore(mappingStorageKey(recipient, Storage.balance),
-            add(balanceOfDestination, callvalue()))
-
-        // totalSupply
-        sstore(0, add(sload(0), callvalue()))
+        let balanceOfDestination := sload(recipientBalanceSlot2)
+        sstore(recipientBalanceSlot2, add(balanceOfDestination, callvalue()))
 
         let dataSize := sub(calldatasize(), 0x44) // Unlike other *AndCall functions, we're not copying the "offset" pos
 
@@ -355,7 +344,7 @@ object "WETH11" {
       }
 
       case sig"totalSupply() public view returns (uint256)" {
-        mstore(0, sload(0))
+        mstore(0, selfbalance())
         return(0, 32)
       }
 
@@ -390,30 +379,35 @@ object "WETH11" {
       stop() // stop execution here..
 
       function transferFrom(source, destination, amount) {
-        let balanceOfSource := sload(mappingStorageKey(source, Storage.balance))
-        let allowanceOfSourceSender := sload(mappingStorageKey2(source, caller(), Storage.allowance))
+        const sourceBalanceSlot := mappingStorageKey(source, Storage.balance)
+        const desinationBalanceSlot := mappingStorageKey(destination, Storage.balance)
+        const balanceOfSource := sload(sourceBalanceSlot)
 
         // require(balanceOf[src] >= wad, "Dai/insufficient-balance");
         require(gte(balanceOfSource, amount), error"insufficient-balance")
 
         // if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
-        if and(neq(source, caller()), neq(allowanceOfSourceSender, MAX_UINT)) {
-          // require(allowance[src][msg.sender] >= wad, "Dai/insufficient-allowance");
-          require(gte(allowanceOfSourceSender, amount), error"insufficient-allowance")
+        if neq(source, caller()) {
+          const sourceAllowanceSlot := mappingStorageKey2(source, caller(), Storage.allowance)
+          const allowanceOfSourceSender := sload(sourceAllowanceSlot)
 
-          // allowance[src][msg.caller] = sub(allowance[src][msg.caller], wad);
-          sstore(mappingStorageKey2(source, caller(), Storage.allowance),
-              sub(allowanceOfSourceSender, amount))
+          // if (allowance[src][msg.sender] != uint(-1))
+          // Skip the allowance SSTORE if the allowance is MAX_INT
+          if neq(allowanceOfSourceSender, MAX_UINT) {
+            // require(allowance[src][msg.sender] >= wad, "Dai/insufficient-allowance");
+            require(gte(allowanceOfSourceSender, amount), error"insufficient-allowance")
+
+            // allowance[src][msg.caller] = sub(allowance[src][msg.caller], wad);
+            sstore(sourceAllowanceSlot, sub(allowanceOfSourceSender, amount))
+          }
         }
 
         //  balanceOf[src] = sub(balanceOf[src], wad);
-        sstore(mappingStorageKey(source, Storage.balance),
-            sub(balanceOfSource, amount))
+        sstore(sourceBalanceSlot, sub(balanceOfSource, amount))
 
         // balanceOf[dst] = add(balanceOf[dst], wad);
-        let balanceOfDestination := sload(mappingStorageKey(destination, Storage.balance))
-        sstore(mappingStorageKey(destination, Storage.balance),
-            add(balanceOfDestination, amount))
+        const balanceOfDestination := sload(desinationBalanceSlot)
+        sstore(desinationBalanceSlot, add(balanceOfDestination, amount))
 
         mstore(0, amount)
         log3(0, 32, topic"event Transfer(address indexed source, address indexed destination, uint amount)",
@@ -421,8 +415,9 @@ object "WETH11" {
       }
 
       function withdraw(source, destination, amount) {
-        // balanceOf[dst] = add(balanceOf[dst], wad);
-        let balanceOfCaller := sload(mappingStorageKey(source, Storage.balance))
+        const balanceSlot := mappingStorageKey(source, Storage.balance)
+
+        let balanceOfCaller := sload(balanceSlot)
         require(gte(balanceOfCaller, amount), error"insufficient-balance")
 
         if neq(source, caller()) {
@@ -437,12 +432,8 @@ object "WETH11" {
           }
         }
 
-        // TODO: reuse storage key
-        sstore(mappingStorageKey(source, Storage.balance),
-            sub(balanceOfCaller, amount))
-
-        // totalSupply
-        sstore(0, sub(sload(0), amount))
+        // balanceOf[dst] = sub(balanceOf[dst], wad);
+        sstore(balanceSlot, sub(balanceOfCaller, amount))
 
         // ETH transfer
         let success := call(gas(), destination, amount, 0, 0, 0, 0)
