@@ -139,8 +139,22 @@ describe("WETH11", function() {
         const balanceBefore = await weth.balanceOf(await user1.getAddress())
         const ethBalanceBefore = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
 
-
         const tx = await weth.transfer('0x0000000000000000000000000000000000000000', 1)
+        const receipt = await tx.wait()
+        const gasFee = receipt.gasUsed.mul(tx.gasPrice)
+
+        const balanceAfter = await weth.balanceOf(await user1.getAddress())
+        const ethBalanceAfter = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
+
+        expect(balanceAfter).to.equal(balanceBefore.sub('1'))
+        expect(ethBalanceAfter).to.equal(ethBalanceBefore.add('1').sub(gasFee))
+      })
+
+      it('withdraws ether by transferring to contract', async () => {
+        const balanceBefore = await weth.balanceOf(await user1.getAddress())
+        const ethBalanceBefore = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
+
+        const tx = await weth.transfer(weth.address, 1)
         const receipt = await tx.wait()
         const gasFee = receipt.gasUsed.mul(tx.gasPrice)
 
@@ -169,6 +183,21 @@ describe("WETH11", function() {
         const balanceAfter = await weth.balanceOf(await user1.getAddress())
         const ethBalanceAfter = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
         
+        expect(balanceAfter).to.equal(balanceBefore.sub('1'))
+        expect(ethBalanceAfter).to.equal(ethBalanceBefore.add('1').sub(gasFee))
+      })
+
+      it('withdraws ether by transferring from someone to contract', async () => {
+        const balanceBefore = await weth.balanceOf(await user1.getAddress())
+        const ethBalanceBefore = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
+
+        const tx = await weth.transferFrom(await user1.getAddress(), weth.address, 1)
+        const receipt = await tx.wait()
+        const gasFee = receipt.gasUsed.mul(tx.gasPrice)
+
+        const balanceAfter = await weth.balanceOf(await user1.getAddress())
+        const ethBalanceAfter = ethers.BigNumber.from(await ethers.provider.getBalance(await user1.getAddress()))
+
         expect(balanceAfter).to.equal(balanceBefore.sub('1'))
         expect(ethBalanceAfter).to.equal(ethBalanceBefore.add('1').sub(gasFee))
       })

@@ -57,14 +57,13 @@ object "WETH11" {
         let recipient := transfer.recipient(_calldata)
         let amount := transfer.amount(_calldata)
 
-        if eq(recipient, 0) {
+        if or(eq(recipient, 0), eq(recipient, address())) {
           withdraw(caller(), caller(), amount)
+          mstore(0, true)
+          return(0, 32)
         }
 
-        if gt(recipient, 0) {
-          transferFrom(caller(), recipient, amount)
-        }
-
+        transferFrom(caller(), recipient, amount)
         mstore(0, true)
         return(0, 32)
       }
@@ -104,14 +103,13 @@ object "WETH11" {
         let destination := transferFromCalldata.destination(_calldata)
         let amount := transferFromCalldata.amount(_calldata)
 
-        if eq(destination, 0) {
+        if or(eq(destination, 0), eq(destination, address())) {
           withdraw(source, caller(), amount)
+          mstore(0, true)
+          return(0, 32)
         }
 
-        if gt(destination, 0) {
-          transferFrom(source, destination, amount)
-        }
-
+        transferFrom(source, destination, amount)
         mstore(0, true)
         return(0, 32)
       }
